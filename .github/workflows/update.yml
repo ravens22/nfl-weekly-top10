@@ -25,6 +25,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html
+          git add index.html manifest.json *.html
           git diff --quiet --cached || git commit -m "Weekly update: $(date -u +'%Y-%m-%d')"
           git push
