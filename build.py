@@ -332,10 +332,10 @@ def save_manifest(entries):
         json.dump(entries, f, ensure_ascii=False, indent=2)
 
 
-def upsert_manifest(filename, label, sort_key):
+def upsert_manifest(filename, label, sort_key, year):
     entries = load_manifest()
     entries = [e for e in entries if e["filename"] != filename]
-    entries.append({"filename": filename, "label": label, "sort_key": sort_key})
+    entries.append({"filename": filename, "label": label, "sort_key": sort_key, "year": year})
     entries.sort(key=lambda e: tuple(e["sort_key"]), reverse=True)
     save_manifest(entries)
     return entries
@@ -371,7 +371,7 @@ PAGE_STYLE = """
 """
 
 
-def render_week_page(filename, label, niners_game, ranked_games, is_playoff):
+def render_week_page(filename, label, niners_game, ranked_games, is_playoff, year):
     updated_at = (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime("%Y-%m-%d %H:%M JST")
 
     niners_block = ""
@@ -422,7 +422,7 @@ def render_week_page(filename, label, niners_game, ranked_games, is_playoff):
 <style>{PAGE_STYLE}</style>
 </head>
 <body>
-  <p><a href="index.html">&larr; Week一覧へ戻る</a></p>
+  <p><a href="season-{year}.html">&larr; {year}シーズン一覧へ戻る</a></p>
   <h1>今週のNFL観戦ガイド：{label}</h1>
   <div class="updated">最終更新: {updated_at}</div>
   <div class="criteria">
@@ -440,24 +440,61 @@ def render_week_page(filename, label, niners_game, ranked_games, is_playoff):
         f.write(html)
 
 
-def render_index(entries):
+def render_season_page(year, entries_for_year):
     items = "".join(
-        f'<li><a href="{e["filename"]}">{e["label"]}</a></li>' for e in entries
+        f'<li><a href="{e["filename"]}">{e["label"]}</a></li>' for e in entries_for_year
     )
     if not items:
-        items = "<li>まだページがありません。シーズン開幕をお待ちください。</li>"
+        items = "<li>まだページがありません。</li>"
 
     html = f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NFL観戦ガイド - Week一覧</title>
+<title>NFL観戦ガイド - {year}シーズン</title>
+<style>{PAGE_STYLE}</style>
+</head>
+<body>
+  <p><a href="index.html">&larr; シーズン一覧へ戻る</a></p>
+  <h1>{year}シーズン</h1>
+  <div class="criteria">週ごとに観戦おすすめ試合をランキング形式でまとめています。下の一覧から見たいWeekを選んでください。</div>
+  <ul class="week-list">
+    {items}
+  </ul>
+</body>
+</html>
+"""
+    with open(f"season-{year}.html", "w", encoding="utf-8") as f:
+        f.write(html)
+
+
+def render_index(entries):
+    for e in entries:
+        e.setdefault("year", e["sort_key"][0])
+
+    years = sorted({e["year"] for e in entries}, reverse=True)
+    for year in years:
+        entries_for_year = [e for e in entries if e["year"] == year]
+        render_season_page(year, entries_for_year)
+
+    items = "".join(
+        f'<li><a href="season-{year}.html">{year}シーズン</a></li>' for year in years
+    )
+    if not items:
+        items = "<li>まだシーズンが始まっていません。開幕をお待ちください。</li>"
+
+    html = f"""<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NFL観戦ガイド - シーズン一覧</title>
 <style>{PAGE_STYLE}</style>
 </head>
 <body>
   <h1>NFL観戦ガイド</h1>
-  <div class="criteria">週ごとに観戦おすすめ試合をランキング形式でまとめています。下の一覧から見たいWeekを選んでください。</div>
+  <div class="criteria">シーズンごとにページが分かれています。見たいシーズンを選んでください。</div>
   <ul class="week-list">
     {items}
   </ul>
@@ -494,9 +531,9 @@ def main():
         niners_game["stars"] = stars_from_rank(idx, len(games))
         niners_game["teaser"] = generate_teaser(niners_game, is_playoff)
 
-    render_week_page(filename, label, niners_game, ranked_games, is_playoff)
+    render_week_page(filename, label, niners_game, ranked_games, is_playoff, year)
 
-    entries = upsert_manifest(filename, label, list(sort_key))
+    entries = upsert_manifest(filename, label, list(sort_key), year)
     render_index(entries)
 
 
